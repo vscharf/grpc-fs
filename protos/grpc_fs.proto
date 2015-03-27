@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package grpcfs;
+
+// Interface exported by the server.
+service FileServer {
+  rpc GetFile(FileRequest) returns (stream FileChunk) {}
+}
+
+message FileRequest {
+  string name = 1;
+}
+
+message FileChunk {
+  bytes chunk = 1;
+}
