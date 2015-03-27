@@ -9,7 +9,7 @@ vpath %.pb.h $(GENDIR)
 vpath %.cc src/server src/client
 
 CXX = g++
-CPPFLAGS += -pthread -I$(GENDIR)
+CPPFLAGS += -pthread -I$(GENDIR) -g
 CXXFLAGS += -std=c++11
 LDFLAGS += -lgrpc++_unsecure -lgrpc -lgpr -lprotobuf -lpthread -ldl
 PROTOC = protoc
@@ -18,7 +18,7 @@ GRPC_CPP_PLUGINDIR ?= `which $(GRPC_CPP_PLUGIN)`
 
 all: $(BINDIR)/grpcfs_server $(BINDIR)/grpcfs_client
 
-test: tests/performance-tests-local/transfer_ram_ram
+test: $(addprefix tests/performance-tests-local/,transfer_ram_ram transfer_ram_ram_parallel transfer_disk_disk)
 
 $(GENDIR):
 	@mkdir -p $(GENDIR)
