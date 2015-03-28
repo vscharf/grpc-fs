@@ -11,14 +11,19 @@ vpath %.cc src/server src/client
 CXX = g++
 CPPFLAGS += -pthread -I$(GENDIR) -g
 CXXFLAGS += -std=c++11
+LDFLAGS_STATIC += -static -lgrpc++_unsecure -lgrpc -lgpr -lprotobuf -Wl,-Bdynamic -lpthread -ldl -lrt
 LDFLAGS += -lgrpc++_unsecure -lgrpc -lgpr -lprotobuf -lpthread -ldl
 PROTOC = protoc
 GRPC_CPP_PLUGIN = grpc_cpp_plugin
 GRPC_CPP_PLUGINDIR ?= `which $(GRPC_CPP_PLUGIN)`
 
+TESTS = tests/performance-tests-local/transfer_ram_ram \
+	tests/performance-tests-local/transfer_ram_ram_parallel \
+	tests/performance-tests-local/transfer_disk_disk \
+
 all: $(BINDIR)/grpcfs_server $(BINDIR)/grpcfs_client
 
-test: $(addprefix tests/performance-tests-local/,transfer_ram_ram transfer_ram_ram_parallel transfer_disk_disk)
+test: $(TESTS) $(addsuffix _static, $(TESTS))
 
 $(GENDIR):
 	@mkdir -p $(GENDIR)
@@ -37,10 +42,13 @@ $(OBJDIR)/%.o: %.cc | $(OBJDIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ -c $<
 
 $(BINDIR)/%: $(OBJDIR)/grpc_fs.pb.o $(OBJDIR)/%.o | $(BINDIR)
-	$(CXX) $^ $(LDFLAGS) -o $@
+	$(CXX) $^ $(LDFLAGS_STATIC) -o $@
 
 tests/%: grpc_fs.pb.o tests/%.o
 	$(CXX) $^ $(LDFLAGS) -o $@
+
+tests/%_static: grpc_fs.pb.o tests/%.o
+	$(CXX) $^ $(LDFLAGS_STATIC) -o $@
 
 .PHONY: clean
 clean:
