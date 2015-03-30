@@ -20,6 +20,7 @@ GRPC_CPP_PLUGINDIR ?= `which $(GRPC_CPP_PLUGIN)`
 TESTS = tests/performance-tests-local/transfer_ram_ram \
 	tests/performance-tests-local/transfer_ram_ram_parallel \
 	tests/performance-tests-local/transfer_disk_disk \
+	tests/performance-tests-remote/transfer_disk_disk
 
 all: $(BINDIR)/grpcfs_server $(BINDIR)/grpcfs_client
 
