@@ -22,7 +22,11 @@ TESTS = tests/performance-tests-local/transfer_ram_ram \
 	tests/performance-tests-local/transfer_disk_disk \
 	tests/performance-tests-remote/transfer_disk_disk
 
-all: $(BINDIR)/grpcfs_server $(BINDIR)/grpcfs_client
+BINS = $(BINDIR)/grpcfs_server \
+       $(BINDIR)/grpcfs_client
+
+all: $(BINS) $(addsuffix _static, $(BINS))
+#all: $(BINDIR)/grpcfs_client
 
 test: $(TESTS) $(addsuffix _static, $(TESTS))
 
@@ -43,6 +47,9 @@ $(OBJDIR)/%.o: %.cc | $(OBJDIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ -c $<
 
 $(BINDIR)/%: $(OBJDIR)/grpc_fs.pb.o $(OBJDIR)/%.o | $(BINDIR)
+	$(CXX) $^ $(LDFLAGS) -o $@
+
+$(BINDIR)/%_static: $(OBJDIR)/grpc_fs.pb.o $(OBJDIR)/%.o | $(BINDIR)
 	$(CXX) $^ $(LDFLAGS_STATIC) -o $@
 
 tests/%: grpc_fs.pb.o tests/%.o
