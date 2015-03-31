@@ -4,13 +4,20 @@ package grpcfs;
 
 // Interface exported by the server.
 service FileServer {
-  rpc GetFile(FileRequest) returns (stream FileChunk) {}
+  rpc GetFile(FileRequest) returns (FileRequestAnswer) {}
 }
 
 message FileRequest {
   string name = 1;
+  string host = 2;
+  int32 port = 3;
 }
 
-message FileChunk {
-  bytes chunk = 1;
+message FileRequestAnswer {
+  enum Status {
+    OK = 0;
+    FAIL = 1;
+    FULL = 2;
+  }
+  Status status = 1;
 }
