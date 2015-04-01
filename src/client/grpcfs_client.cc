@@ -43,7 +43,19 @@ pid_t spawn_netcat(int port, std::string outfile) {
     if(fd < 0) return -1;
     dup2(fd, 1);
     close(fd);
-    if(execlp("nc", "nc", "-l", std::to_string(port).c_str(), NULL)) return -1;
+
+    fd = open("nc.err", O_WRONLY|O_CREAT, 0666);
+    if(fd < 0) return -1;
+    dup2(fd, 2);
+    close(fd);
+
+    // int fds[2];
+    // pipe(fds);
+    // close(fds[1]);
+    // dup2(fds[0], 0);
+    // close(fds[0]);
+
+    if(execlp("nc", "nc", "-v", "-v", "-d", "-l", std::to_string(port).c_str(), NULL)) return -1;
   }
 }
 
