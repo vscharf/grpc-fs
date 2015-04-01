@@ -9,7 +9,7 @@ vpath %.pb.h $(GENDIR)
 vpath %.cc src/server src/client
 
 CXX = g++
-CPPFLAGS += -pthread -I$(GENDIR) -g
+CPPFLAGS += -pthread -g -I$(GENDIR) -I$(BOOST_INCLUDEDIR) -DBOOST_DATE_TIME_NO_LIB -I../grpc
 CXXFLAGS += -std=c++11
 LDFLAGS_STATIC += -static -lgrpc++_unsecure -lgrpc -lgpr -lprotobuf -Wl,-Bdynamic -lpthread -ldl -lrt
 LDFLAGS += -lgrpc++_unsecure -lgrpc -lgpr -lprotobuf -lpthread -ldl
