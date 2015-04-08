@@ -1,4 +1,7 @@
 // -*- C++ -*-
+#include <chrono>
+#include <ios> // for std::streamsize
+#include <iostream>
 #include <string>
 #include <boost/asio/ip/tcp.hpp>
 
@@ -7,12 +10,18 @@ namespace transfer {
 
 class Receiver {
 public:
+  struct PerformanceData {
+    std::chrono::steady_clock::time_point start;
+    std::chrono::steady_clock::time_point stop;
+    std::streamsize transferred;
+  };
+
   Receiver(boost::asio::io_service& io_service, unsigned short port_num)
     : acceptor_(io_service, boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), port_num))
   {}
 
   template<class ostream>
-  boost::system::error_code receive(ostream& stream);
+  boost::system::error_code receive(ostream& stream, PerformanceData* p = nullptr);
 
 private:
   boost::asio::ip::tcp::acceptor acceptor_;
@@ -25,7 +34,7 @@ public:
 }; // class Sender
 
 template<class ostream>
-inline boost::system::error_code Receiver::receive(ostream& out_stream)
+inline boost::system::error_code Receiver::receive(ostream& out_stream, PerformanceData* p /*= nullptr*/)
 {
   using boost::asio::ip::tcp;
 
@@ -34,7 +43,12 @@ inline boost::system::error_code Receiver::receive(ostream& out_stream)
   acceptor_.accept(*stream.rdbuf(), ec);
   if(ec) return ec;
 
+  auto start = std::chrono::steady_clock::now();
   out_stream << stream.rdbuf();
+  auto stop =  std::chrono::steady_clock::now();
+  if(p) {
+    *p = {start, stop, stream.gcount()};
+  }
 
   // basic_ostream::operator bool() return true for eof and good
   if(out_stream && stream.error() == boost::asio::error::eof) return ec;

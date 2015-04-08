@@ -29,3 +29,7 @@
 
 # Emacs auto-save
 *~
+
+# directories
+bins/*
+src_gen/*
