@@ -2,6 +2,7 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <thread>
 
 #include <boost/asio.hpp>
 
@@ -32,7 +33,13 @@ int main(int argc, char *argv[]) {
 
   grpcfs::transfer::Receiver::PerformanceData D;
 
-  auto E = R.receive(*O, &D);
+  R.receive(*O, &D);
+  io_service.run();
+
+  // wait for receiver to finish
+  boost::system::error_code E;
+  while(!R.finished(E)) std::this_thread::sleep_for(std::chrono::seconds(1));
+
   if(E) {
     std::cerr << "Error receiving data: " << E.message() << std::endl;
     return 1;

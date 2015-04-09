@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <memory>
 #include <random>
 #include <string>
@@ -14,12 +15,12 @@
 #include <grpc++/stream.h>
 #include "grpc_fs.pb.h"
 
-#include <sys/stat.h>
+#include <boost/asio.hpp>
+
 #include <sys/types.h>
-#include <sys/wait.h>
-#include <fcntl.h>
-#include <stdio.h>
 #include <unistd.h>
+
+#include "transfer/transfer.h"
 
 using grpc::ChannelArguments;
 using grpc::ChannelInterface;
@@ -29,35 +30,6 @@ using grpc::Status;
 using grpcfs::FileServer;
 using grpcfs::FileRequest;
 using grpcfs::FileRequestAnswer;
-
-pid_t spawn_netcat(int port, std::string outfile) {
-  pid_t pid = fork();
-
-  if(pid) {
-    // parent process
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
-    if(waitpid(pid, nullptr, WNOHANG)) return -1;
-    return pid;
-  } else {
-    int fd = open(outfile.c_str(), O_WRONLY|O_CREAT, 0666);
-    if(fd < 0) return -1;
-    dup2(fd, 1);
-    close(fd);
-
-    fd = open("nc.err", O_WRONLY|O_CREAT, 0666);
-    if(fd < 0) return -1;
-    dup2(fd, 2);
-    close(fd);
-
-    // int fds[2];
-    // pipe(fds);
-    // close(fds[1]);
-    // dup2(fds[0], 0);
-    // close(fds[0]);
-
-    if(execlp("nc", "nc", "-v", "-v", "-d", "-l", std::to_string(port).c_str(), NULL)) return -1;
-  }
-}
 
 std::string get_hostname() {
   char n[1024];
@@ -72,45 +44,32 @@ public:
     : stub_(FileServer::NewStub(channel)) {}
 
   bool GetFile(std::string filename, std::string out_filename) {
-    ClientContext context;
 
-    // try to open nc listening on some port for 10 times then bail out
     pid_t pid;
-    int port = getpid() % (65536 - 30000) + 30000;
+    unsigned short port = getpid() % (65536 - 30000) + 30000;
 
-    std::size_t N(10);
-    while(N--) {
-      if((pid = spawn_netcat(port, out_filename)) > 0) break;
-      port = rand() % (65536 - 30000) + 30000;
-    }      
-    if(!N) {
-      std::cout << "Couldn't spawn netcat\n";
-      return false;
-    }
+    std::ofstream F(out_filename);
+
+    boost::asio::io_service io_service;
+    grpcfs::transfer::Receiver R(io_service, port);
+    R.receive(F); // async handler
 
     FileRequest r;
     r.set_name(filename);
     r.set_host(get_hostname());
     r.set_port(port);
-    std::cout << "Requesting file " << r.name() << " for port " << port << "\n";
 
-    FileRequestAnswer c;
-    Status status = stub_->GetFile(&context, r, &c);
-
-    if (!status.IsOk()) {
-      std::cout << "RPC failed\n";
-      return false;
-    } else {
-      if(c.status() != grpcfs::FileRequestAnswer_Status_OK) {
-        std::cout << "Status failed\n";
-        return false;
-      }
-    }
+    make_request(r, io_service);
     
-    // wait for netcat to finish
-    if(waitpid(pid, nullptr, 0) < 0) {
-      std::cout << "Error waiting for netcat ... \n";
-      kill(pid, SIGTERM);
+    std::cout << "Waiting for file!" << std::endl;
+
+    // wait for receiver to finish
+    boost::system::error_code E;
+    while(!io_service.stopped() && !R.finished(E)) io_service.run_one();
+
+    if(E) {
+      std::cout << "Error receiving data: " << E.message() << std::endl;
+      return false;
     }
 
     return true;
@@ -119,6 +78,21 @@ public:
 
 private:
   std::unique_ptr<FileServer::Stub> stub_;
+
+  void make_request(const FileRequest& R, boost::asio::io_service& io_service) {
+    std::cout << "Requesting file " << R.name() << " for port " << R.port() << std::endl;
+
+    ClientContext context;
+    FileRequestAnswer c;
+    Status status = stub_->GetFile(&context, R, &c);
+
+    if (!status.IsOk() || c.status() != grpcfs::FileRequestAnswer_Status_OK) {
+      std::cout << "RPC failed" << std::endl;
+      io_service.stop();
+    } else {
+      std::cout << "RPC sucessfull" << std::endl;
+    }
+  }
 };
 
 int main(int argc, char** argv) {
@@ -130,7 +104,7 @@ int main(int argc, char** argv) {
 
   FileServerClient client(grpc::CreateChannel("192.168.0.247:50051", grpc::InsecureCredentials(), ChannelArguments()));
 
-  std::cout << "-------------- GetFile --------------\n";
+  std::cout << "-------------- GetFile --------------" << std::endl;
   client.GetFile(argv[1], argv[2]);
 
   client.Shutdown();

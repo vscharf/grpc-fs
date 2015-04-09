@@ -7,13 +7,19 @@ SRCDIR = src
 vpath %.proto $(PROTOSDIR)
 vpath %.pb.cc $(GENDIR)
 vpath %.pb.h $(GENDIR)
-vpath %.cc src/server src/client
+vpath %.o $(OBJDIR)
+vpath %.cc src/server src/client src/util
 
 CXX = g++
-CPPFLAGS += -pthread -g -I$(GENDIR) -I$(SRCDIR) -I$(BOOST_INCLUDEDIR) -DBOOST_DATE_TIME_NO_LIB -I../grpc
+CPPFLAGS += -pthread -g -I$(GENDIR) -I$(SRCDIR) -I$(BOOST_INCLUDEDIR) -DBOOST_DATE_TIME_NO_LIB -I$(TBB_INCLUDEDIR) -I../grpc
 CXXFLAGS += -std=c++11
-LDFLAGS_STATIC += -static -lgrpc++_unsecure -lgrpc -lgpr -lprotobuf -L$(BOOST_LIBRARYDIR) -lboost_system-gcc47-mt-1_53 -Wl,-Bdynamic -lpthread -ldl -lrt
-LDFLAGS += -lgrpc++_unsecure -lgrpc -lgpr -lprotobuf -lpthread -ldl -L$(BOOST_LIBRARYDIR) -lboost_system-gcc47-mt-1_53
+
+STATIC_LIBS  = -lgrpc++_unsecure -lgrpc -lgpr -lprotobuf \
+               -L$(BOOST_LIBRARYDIR) -lboost_system-gcc47-mt-1_53
+DYNAMIC_LIBS = -lpthread -ldl -lrt -L$(TBB_LIBRARYDIR)
+
+LDFLAGS_STATIC += -static $(STATIC_LIBS) -Wl,-Bdynamic $(DYNAMIC_LIBS)
+LDFLAGS += $(STATIC_LIBS) $(DYNAMIC_LIBS)
 PROTOC = protoc
 GRPC_CPP_PLUGIN = grpc_cpp_plugin
 GRPC_CPP_PLUGINDIR ?= `which $(GRPC_CPP_PLUGIN)`
@@ -31,7 +37,7 @@ TESTS = $(LOCAL_TESTS) $(REMOTE_TESTS) $(TRANSFER_TESTS)
 BINS = $(BINDIR)/grpcfs_server \
        $(BINDIR)/grpcfs_client
 
-all: $(BINS) $(addsuffix _static, $(BINS))
+all: $(BINS)
 #all: $(BINDIR)/grpcfs_client
 
 test: $(TRANSFER_TESTS) $(addsuffix _static, $(TRANSFER_TESTS))
@@ -52,11 +58,13 @@ $(OBJDIR)/%.pb.o: %.pb.cc | $(OBJDIR)
 $(OBJDIR)/%.o: %.cc | $(OBJDIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ -c $<
 
-$(BINDIR)/%: $(OBJDIR)/grpc_fs.pb.o $(OBJDIR)/%.o | $(BINDIR)
+$(BINDIR)/grpcfs_client: grpc_fs.pb.o grpcfs_client.o | $(BINDIR)
 	$(CXX) $^ $(LDFLAGS) -o $@
+	$(CXX) $^ $(LDFLAGS_STATIC) -o $@_static
 
-$(BINDIR)/%_static: $(OBJDIR)/grpc_fs.pb.o $(OBJDIR)/%.o | $(BINDIR)
-	$(CXX) $^ $(LDFLAGS_STATIC) -o $@
+$(BINDIR)/grpcfs_server: grpc_fs.pb.o grpcfs_server.o pipeline.o fetch.o transfer.o | $(BINDIR)
+	$(CXX) $^ $(LDFLAGS) -o $@ -ltbb
+	$(CXX) $^ $(LDFLAGS_STATIC) -o $@_static -ltbb
 
 tests/%: grpc_fs.pb.o tests/%.o
 	$(CXX) $^ $(LDFLAGS) -o $@
